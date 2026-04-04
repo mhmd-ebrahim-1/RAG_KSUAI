@@ -2,13 +2,13 @@ import os
 import html
 import time
 from flask import Flask, render_template, request, redirect, url_for
-from rag_system import LaihaRAG, check_ollama, generate_answer, OLLAMA_MODEL
+from rag_system import LaihaRAG, check_ollama, generate_answer, OLLAMA_MODEL, is_staff_query, compose_staff_answer
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
 
 rag = LaihaRAG("./index")
-rag.ensure_index("data.json")
+rag.ensure_index(["data.json", "data2.json"])
 
 # Simple in-memory caches to reduce repeated latency on local usage.
 OLLAMA_STATUS_TTL = 8
@@ -42,6 +42,15 @@ SUGGESTED_QUESTIONS = [
             "مواد المستوى الثاني الفصل الثاني",
             "مواد المستوى الرابع الفصل الأول",
             "ما شروط مشروع التخرج؟",
+        ],
+    ),
+    (
+        "الدكاترة والكلية",
+        [
+            "مين وكيل الكلية لشئون التعليم والطلاب؟",
+            "ايه تخصص د. محمود يس يش شمس الدين؟",
+            "ايميل د. تامر مدحت؟",
+            "كم عدد أعضاء هيئة التدريس في الكلية؟",
         ],
     ),
 ]
@@ -229,6 +238,9 @@ def index():
                     sources = rag.search(query, top_k=5)
                     if sources and sources[0].get("type") == "courses":
                         answer = "\n".join([f"- {c}" for c in sources[0].get("courses", [])])
+                        mode = "retrieval"
+                    elif sources and sources[0].get("type") == "staff":
+                        answer = compose_staff_answer(query, sources[0])
                         mode = "retrieval"
                     elif ollama_running:
                         try:

@@ -4,28 +4,22 @@ Run: py build_clean_index.py
 """
 import json, pickle, os
 import numpy as np
+from rag_system import load_json_data, prepare_text
 
 
-def prepare_text(entry):
-    parts = []
-    for field in ['summary', 'title', 'title_ar']:
-        if entry.get(field): parts.append(str(entry[field]))
-    if entry.get('keywords'): parts.append(' '.join(entry['keywords']))
-    if entry.get('text_ar'): parts.append(entry['text_ar'])
-    if entry.get('description_en'): parts.append(entry['description_en'])
-    if entry.get('courses'): parts.append(' '.join(entry['courses']))
-    if entry.get('level'): parts.append(f'مستوى {entry["level"]} level {entry["level"]}')
-    if entry.get('semester'): parts.append(f'فصل {entry["semester"]} semester {entry["semester"]}')
-    return ' '.join(parts)
-
-
-def build_from_json(json_path='data.json', index_dir='./index'):
+def build_from_json(json_paths=('data.json', 'data2.json'), index_dir='./index'):
     import faiss
     from sklearn.feature_extraction.text import TfidfVectorizer
 
-    print(f'Loading {json_path}...')
-    with open(json_path, encoding='utf-8') as f:
-        data = json.load(f)
+    data = []
+    for json_path in json_paths:
+        if not os.path.exists(json_path):
+            continue
+        print(f'Loading {json_path}...')
+        data.extend(load_json_data(json_path))
+
+    if not data:
+        raise FileNotFoundError('No data files found. Expected data.json and/or data2.json')
 
     texts = [prepare_text(d) for d in data]
 

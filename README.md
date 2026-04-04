@@ -1,111 +1,139 @@
-# مساعد لائحة كلية الذكاء الاصطناعي
+# AI Faculty Regulations Assistant (KFS University)
 
-نظام RAG محلي للإجابة على أسئلة لائحة كلية الذكاء الاصطناعي (جامعة كفر الشيخ) بدقة وسرعة، مع عرض مصادر الإجابة بشكل منظم.
+A local RAG web app for answering questions about the Faculty of Artificial Intelligence regulations at Kafr El-Sheikh University, with clear source snippets and improved accuracy for faculty/staff questions.
 
-## الفكرة باختصار
-- استرجاع المقاطع الأقرب من بيانات اللائحة (FAISS + TF-IDF + Keyword Boost).
-- توليد إجابة عربية عبر Ollama (محلي) عند توفره.
-- عرض واجهة ويب Flask محسنة مع:
-	- ملخص سريع للإجابة
-	- تنسيق واضح للقوائم والفقرات
-	- مصادر مسترجعة منسقة
+## Overview
 
-## المتطلبات
+The system combines:
+- Hybrid retrieval: FAISS + TF-IDF + keyword boosting
+- Multi-source indexing from:
+	- `data.json` (regulations and academic rules)
+	- `data2.json` (faculty/staff and administration data)
+- Optional local generation with Ollama (`qwen2.5:1.5b-instruct`)
+- Deterministic (non-LLM) answers for staff profile intents (email, role, specialization)
+
+## Requirements
+
 - Python 3.13+
-- Ollama مثبت ومحلي (اختياري لكنه يرفع جودة الصياغة)
-- نموذج Ollama:
-	- `qwen2.5:1.5b-instruct`
+- Windows PowerShell (commands below are Windows-friendly)
+- Optional: Ollama for higher quality answer phrasing
+	- Model: `qwen2.5:1.5b-instruct`
 
-## التشغيل (Windows)
-### 1) تفعيل البيئة الافتراضية
+## Run (Windows)
+
+1. Activate the virtual environment:
+
 ```powershell
 & .\.venv\Scripts\Activate.ps1
 ```
 
-### 2) تثبيت المتطلبات
+2. Install dependencies:
+
 ```powershell
 d:/Downloads/files/.venv/Scripts/python.exe -m pip install -r requirements.txt
 ```
 
-### 3) بناء الفهرس من بيانات اللائحة
+3. Build/rebuild index (from `data.json` + `data2.json`):
+
 ```powershell
 d:/Downloads/files/.venv/Scripts/python.exe build_clean_index.py
 ```
 
-### 4) تشغيل Ollama
+4. Start Ollama (optional):
+
 ```powershell
 ollama serve
 ```
 
-### 5) تشغيل الواجهة
+5. Start Flask app:
+
 ```powershell
 d:/Downloads/files/.venv/Scripts/python.exe flask_app.py
 ```
 
-افتح:
-- http://127.0.0.1:5000
+Open:
+- `http://127.0.0.1:5000`
 
-## تشغيل سريع بأمر واحد
-يمكنك استخدام:
+## One-Command Run
+
 ```powershell
 .\run.ps1
 ```
 
-## هيكل المشروع
-```
+## Project Structure
+
+```text
 files/
-├── flask_app.py          # واجهة Flask + منطق العرض
-├── rag_system.py         # محرك RAG (index/search/generation)
-├── build_clean_index.py  # بناء فهرس البحث من data.json
-├── data.json             # بيانات اللائحة
-├── requirements.txt      # الاعتماديات
-├── run.ps1               # سكربت تشغيل سريع
-├── templates/
-│   └── index.html        # قالب الصفحة
-├── static/
-│   ├── style.css         # التصميم
-│   ├── app.js            # تفاعلات الواجهة
-│   └── favicon.svg       # أيقونة
-└── index/
-		├── faiss.index
-		├── vectorizer.pkl
-		└── chunks.json
+|-- flask_app.py
+|-- rag_system.py
+|-- build_clean_index.py
+|-- data.json
+|-- data2.json
+|-- requirements.txt
+|-- run.ps1
+|-- templates/
+|   \-- index.html
+|-- static/
+|   |-- style.css
+|   |-- app.js
+|   |-- favicon.svg
+|   |-- faculty-logo.png
+|   \-- university-logo.png
+\-- index/
+		|-- faiss.index
+		|-- vectorizer.pkl
+		\-- chunks.json
 ```
 
-## الميزات الحالية
-- بحث دلالي محلي سريع على بيانات اللائحة.
-- فلترة ذكية لأسئلة المواد (المستوى/الفصل).
-- إجابة عربية عبر Ollama عند توفره.
-- Fallback تلقائي لو Ollama غير متاح.
-- Cache للأسئلة المتكررة لتسريع الرد.
-- زر "مسح السابق" لمسح النتائج المخزنة مؤقتًا.
+## Current Features
 
-## الأداء
-تم تطبيق تحسينات لتقليل زمن الرد:
-- تقليل السياق المرسل للموديل.
-- تقليل عدد tokens للتوليد.
-- Cache لحالة Ollama.
-- Cache لإجابات الأسئلة المتكررة.
+- Fast local semantic retrieval over faculty regulations
+- Staff-aware question handling (dean/vice-dean/secretary/lecturer/profile)
+- Deterministic answers for high-precision staff intents:
+	- email queries
+	- specialization queries
+	- leadership role queries
+- Smart filtering for course plan queries by level/semester
+- Automatic fallback to retrieval when Ollama is unavailable
+- In-memory caching for repeated questions and Ollama status
+- UI with suggested questions, source cards, and logo branding
 
-## استكشاف الأخطاء
-### الواجهة لا تفتح
-1. تأكد أن Flask يعمل على 5000.
-2. أعد تشغيل:
+## Example Queries
+
+### Regulations
+- How many credit hours are required for graduation?
+- What are the honor degree conditions?
+- What is the passing grade?
+
+### Staff and Administration
+- Who is the vice dean for education and students?
+- What is Dr. Mahmoud Yassein Shams' specialization?
+- What is Dr. Tamer Medhat's email?
+- How many faculty staff members are there?
+
+## Troubleshooting
+
+### App does not open
+- Ensure port `5000` is not occupied by another process.
+- Restart with:
+
 ```powershell
 d:/Downloads/files/.venv/Scripts/python.exe flask_app.py
 ```
 
-### الرد بطيء
-1. تأكد أن Ollama يعمل.
-2. جرب إعادة نفس السؤال (سيستفيد من الكاش).
+### Answers are stale after editing JSON files
+- Rebuild index:
 
-### النتائج غير محدثة بعد تعديل data.json
-أعد بناء الفهرس:
 ```powershell
 d:/Downloads/files/.venv/Scripts/python.exe build_clean_index.py
 ```
 
-## ملاحظات مهمة
-- المشروع Local-first بالكامل.
-- يمكن التشغيل بدون Ollama (Retrieval فقط).
-- يفضل كتابة السؤال بصيغة مباشرة مع كلمات مفتاحية.
+### Ollama start fails with port-in-use error
+- Ollama may already be running on `11434`.
+- You can still run the app; it will connect if Ollama is already active.
+
+## Notes
+
+- Local-first architecture (no external API required for retrieval).
+- Works without Ollama (retrieval-only mode).
+- For best results, ask direct questions with clear keywords.

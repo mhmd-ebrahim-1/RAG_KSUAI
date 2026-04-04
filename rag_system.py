@@ -14,10 +14,143 @@ GEN_MAX_CHARS_PER_CHUNK = 260
 GEN_NUM_PREDICT = 160
 GEN_TIMEOUT_SECONDS = 45
 
+STAFF_QUERY_TERMS = [
+    "دكتور", "دكتورة", "هيئة التدريس", "معيد", "مدرس", "استاذ", "أستاذ",
+    "إيميل", "ايميل", "تخصص", "قسم", "وكيل", "عميد", "أمين", "امين"
+]
+
 
 def load_json_data(path: str = "data.json") -> list:
     with open(path, encoding="utf-8-sig") as f:
-        return json.load(f)
+        raw = json.load(f)
+    return normalize_data_records(raw)
+
+
+def _flatten_values(value):
+    """Collect leaf values from nested dict/list structures as strings."""
+    if value is None:
+        return []
+    if isinstance(value, (str, int, float, bool)):
+        return [str(value)]
+    if isinstance(value, list):
+        out = []
+        for item in value:
+            out.extend(_flatten_values(item))
+        return out
+    if isinstance(value, dict):
+        out = []
+        for item in value.values():
+            out.extend(_flatten_values(item))
+        return out
+    return [str(value)]
+
+
+def _build_staff_entry(staff: dict) -> dict:
+    text_parts = []
+    for key in [
+        "full_name", "full_name_en", "position", "current_role", "department",
+        "specialization_general", "specialization_specific", "status", "email", "notes"
+    ]:
+        if staff.get(key):
+            text_parts.append(str(staff.get(key)))
+
+    for nested_key in [
+        "education", "achievements", "research_interests", "memberships",
+        "previous_positions", "certifications"
+    ]:
+        text_parts.extend(_flatten_values(staff.get(nested_key)))
+
+    title = staff.get("full_name") or staff.get("position") or "عضو هيئة تدريس"
+    subtitle = staff.get("position") or ""
+    if subtitle:
+        title = f"{title} - {subtitle}"
+
+    return {
+        "type": "staff",
+        "category": "faculty",
+        "title": title,
+        "title_ar": staff.get("full_name") or title,
+        "full_name": staff.get("full_name"),
+        "position": staff.get("position"),
+        "department": staff.get("department"),
+        "keywords": [
+            "دكتور", "دكتورة", "هيئة التدريس", "معيد", "قسم", "تخصص", "ايميل",
+            staff.get("full_name", ""),
+            staff.get("full_name_en", ""),
+            staff.get("department", ""),
+            staff.get("position", ""),
+        ],
+        "text_ar": " | ".join([p for p in text_parts if p]),
+        "staff_profile": staff,
+        "source": "data2.json",
+    }
+
+
+def normalize_data_records(raw) -> list:
+    """Normalize JSON payload to a flat list of searchable records."""
+    if isinstance(raw, list):
+        return raw
+
+    if not isinstance(raw, dict):
+        return []
+
+    records = []
+
+    university = raw.get("university")
+    faculty = raw.get("faculty")
+    if university or faculty:
+        records.append({
+            "type": "overview",
+            "category": "faculty_info",
+            "title": f"{faculty or 'الكلية'} - معلومات عامة",
+            "title_ar": f"{faculty or 'الكلية'} - معلومات عامة",
+            "keywords": ["الكلية", "الجامعة", "نبذة", "معلومات", university or "", faculty or ""],
+            "text_ar": " | ".join(_flatten_values(raw.get("university_profile")))
+        })
+
+    faculty_details = raw.get("faculty_details") or {}
+    if isinstance(faculty_details, dict):
+        records.append({
+            "type": "overview",
+            "category": "faculty_info",
+            "title": "نبذة عن الكلية",
+            "title_ar": "نبذة عن الكلية",
+            "keywords": ["نبذة", "كلية الذكاء الاصطناعي", "الأقسام", "البرامج"],
+            "text_ar": " | ".join(_flatten_values(faculty_details)),
+            "source": "data2.json",
+        })
+
+    staff_members = raw.get("staff_members") or []
+    if isinstance(staff_members, list):
+        for member in staff_members:
+            if isinstance(member, dict):
+                records.append(_build_staff_entry(member))
+
+    departments = raw.get("departments")
+    if isinstance(departments, list) and departments:
+        records.append({
+            "type": "departments",
+            "category": "faculty_info",
+            "title": "أقسام الكلية",
+            "title_ar": "أقسام الكلية",
+            "keywords": ["أقسام", "قسم", "الكلية"],
+            "text_ar": "\n".join([f"- {d}" for d in departments]),
+            "source": "data2.json",
+        })
+
+    statistics = raw.get("statistics")
+    if isinstance(statistics, dict):
+        records.append({
+            "type": "statistics",
+            "category": "faculty_info",
+            "title": "إحصائيات أعضاء هيئة التدريس",
+            "title_ar": "إحصائيات أعضاء هيئة التدريس",
+            "keywords": ["إحصائيات", "عدد", "هيئة التدريس", "أساتذة"],
+            "text_ar": " | ".join(_flatten_values(statistics)),
+            "source": "data2.json",
+        })
+
+    return records
 
 
 # ─── TEXT PROCESSING ────────────────────────────────────────────────────────
@@ -103,6 +236,9 @@ def prepare_text(entry: dict) -> str:
     if entry.get('courses'): parts.append(' '.join(entry['courses']))
     if entry.get('level'): parts.append(f'مستوى {entry["level"]} level {entry["level"]}')
     if entry.get('semester'): parts.append(f'فصل {entry["semester"]} semester {entry["semester"]}')
+    if entry.get('department'): parts.append(str(entry['department']))
+    if entry.get('position'): parts.append(str(entry['position']))
+    if entry.get('category'): parts.append(str(entry['category']))
     # fallback for old plain-text chunks
     if entry.get('text'): parts.append(entry['text'])
     return ' '.join(parts)
@@ -115,6 +251,87 @@ def keyword_score(query: str, text: str) -> float:
         return 0.0
     hits = sum(1 for w in words if w in text)
     return hits / len(words)
+
+
+def is_staff_query(query: str) -> bool:
+    q = query.strip()
+    return any(k in q for k in STAFF_QUERY_TERMS)
+
+
+def _name_tokens(full_name: str) -> list:
+    if not full_name:
+        return []
+    return [t for t in re.findall(r'[\u0600-\u06FFA-Za-z]+', full_name) if len(t) >= 2]
+
+
+def _staff_name_match_score(query: str, entry: dict) -> float:
+    q = query.strip()
+    name = entry.get("title_ar") or entry.get("full_name") or ""
+    tokens = _name_tokens(name)
+    if not tokens:
+        return 0.0
+
+    matched = sum(1 for t in tokens if t in q)
+    if matched == 0:
+        return 0.0
+    return matched / len(tokens)
+
+
+def _rerank_staff_results(results: list, query: str) -> list:
+    asks_email = any(k in query for k in ["إيميل", "ايميل", "email", "البريد"])
+    asks_spec = any(k in query for k in ["تخصص", "مجال", "research", "اهتمام"])
+
+    boosted = []
+    for row in results:
+        score = float(row.get("score", 0.0))
+        if row.get("type") == "staff":
+            score += 0.2
+            score += 0.8 * _staff_name_match_score(query, row)
+            profile = row.get("staff_profile") or {}
+            if asks_email and profile.get("email") and "لم يتم" not in str(profile.get("email")):
+                score += 0.15
+            if asks_spec and profile.get("specialization_specific"):
+                score += 0.1
+
+        copy_row = row.copy()
+        copy_row["score"] = round(score, 4)
+        boosted.append(copy_row)
+
+    boosted.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+    return boosted
+
+
+def compose_staff_answer(query: str, staff_chunk: dict) -> str:
+    """Generate a precise non-LLM answer for staff profile questions."""
+    profile = staff_chunk.get("staff_profile") or {}
+    name = profile.get("full_name") or staff_chunk.get("title_ar") or staff_chunk.get("title") or "غير محدد"
+    position = profile.get("position") or "غير محدد"
+    role = profile.get("current_role")
+    department = profile.get("department")
+    spec = profile.get("specialization_specific") or profile.get("specialization_general")
+    email = profile.get("email")
+
+    q = query.strip()
+    if any(k in q for k in ["إيميل", "ايميل", "email", "البريد"]):
+        if email and "لم يتم" not in str(email):
+            return f"إيميل {name}: {email}."
+        return f"لا يوجد إيميل متاح حاليًا لـ {name} في البيانات."
+
+    if any(k in q for k in ["تخصص", "مجال", "research", "اهتمام"]):
+        if spec:
+            return f"تخصص {name}: {spec}."
+        return f"لا توجد تفاصيل تخصص دقيقة لـ {name} في البيانات الحالية."
+
+    if any(k in q for k in ["وكيل", "عميد", "أمين", "امين"]):
+        summary = role or f"{position}"
+        return f"{name} يشغل: {summary}."
+
+    parts = [f"{name} يعمل كـ {position}"]
+    if department:
+        parts.append(f"في قسم {department}")
+    if role:
+        parts.append(f"والدور الحالي: {role}")
+    return "، ".join(parts) + "."
 
 
 def extract_level_semester(query: str):
@@ -152,6 +369,18 @@ def extract_level_semester(query: str):
 def smart_filter(results: list, query: str) -> list:
     q = query.strip()
     has_courses_intent = any(k in q for k in ["مواد", "مقررات", "الخطة", "المستوى", "الفصل"])
+
+    if is_staff_query(q):
+        staff = [r for r in results if r.get("type") == "staff" or r.get("category") == "faculty"]
+        return staff or results
+
+    if any(k in q for k in ["وكيل", "عميد", "أمين", "امين"]):
+        staff = [r for r in results if r.get("type") == "staff"]
+        leadership = [
+            r for r in staff
+            if any(term in prepare_text(r) for term in ["وكيل", "عميد", "أمين", "امين"])
+        ]
+        return leadership or staff or results
 
     if has_courses_intent:
         level, semester = extract_level_semester(q)
@@ -203,6 +432,9 @@ def retrieve(query: str, index, vectorizer, chunks: list, top_k: int = 5) -> lis
         results.append(chunk)
 
     results = smart_filter(results, query)
+
+    if is_staff_query(query):
+        results = _rerank_staff_results(results, query)
 
     # Re-rank and return top_k
     results.sort(key=lambda x: x["score"], reverse=True)
@@ -273,7 +505,12 @@ class LaihaRAG:
         self.index_dir = index_dir
         self.index = self.vectorizer = self.chunks = None
 
-    def ensure_index(self, json_path: str = "data.json"):
+    def ensure_index(self, json_path="data.json"):
+        if isinstance(json_path, (list, tuple)):
+            json_files = [Path(p) for p in json_path]
+        else:
+            json_files = [Path(json_path)]
+
         index_files = [
             Path(self.index_dir) / "faiss.index",
             Path(self.index_dir) / "vectorizer.pkl",
@@ -281,22 +518,33 @@ class LaihaRAG:
         ]
 
         if not all(p.exists() for p in index_files):
-            self.build_from_json(json_path)
+            self.build_from_json([str(p) for p in json_files])
             return
 
-        data_file = Path(json_path)
-        if data_file.exists():
-            data_mtime = data_file.stat().st_mtime
-            index_mtime = min(p.stat().st_mtime for p in index_files)
-            if data_mtime > index_mtime:
-                self.build_from_json(json_path)
+        index_mtime = min(p.stat().st_mtime for p in index_files)
+        for data_file in json_files:
+            if data_file.exists() and data_file.stat().st_mtime > index_mtime:
+                self.build_from_json([str(p) for p in json_files])
                 return
 
         self.load()
 
-    def build_from_json(self, json_path: str = "data.json"):
-        print(f"Loading JSON: {json_path}")
-        chunks = load_json_data(json_path)
+    def build_from_json(self, json_path="data.json"):
+        if isinstance(json_path, (list, tuple)):
+            json_paths = list(json_path)
+        else:
+            json_paths = [json_path]
+
+        chunks = []
+        for one_path in json_paths:
+            if not Path(one_path).exists():
+                continue
+            print(f"Loading JSON: {one_path}")
+            chunks.extend(load_json_data(one_path))
+
+        if not chunks:
+            raise FileNotFoundError("No JSON data files were found to build the index.")
+
         self.index, self.vectorizer, self.chunks = build_index(chunks, self.index_dir)
         print("RAG system ready from JSON!\n")
 
