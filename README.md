@@ -1,123 +1,47 @@
-# 🎓 RAG System — لائحة كلية الذكاء الاصطناعي
+# مساعد لائحة كلية الذكاء الاصطناعي (نسخة نهائية)
 
-نظام RAG (Retrieval-Augmented Generation) للبحث والإجابة عن أسئلة لائحة كلية الذكاء الاصطناعي بجامعة كفر الشيخ.
+مساعد ذكي محلي للإجابة على أسئلة لائحة الكلية باستخدام RAG + Ollama.
 
----
-
-## 📁 هيكل المشروع
-
+## التشغيل السريع
+1. تفعيل البيئة:
+```powershell
+& .\.venv\Scripts\Activate.ps1
 ```
-rag_laiha/
-├── rag_system.py       ← الكود الأساسي (extraction, indexing, retrieval, generation)
-├── app.py              ← Streamlit web UI
-├── requirements.txt    ← المكتبات المطلوبة
-├── README.md
-└── index/              ← يُبنى تلقائياً
-    ├── faiss.index     ← FAISS vector index
-    ├── vectorizer.pkl  ← TF-IDF vectorizer
-    └── chunks.json     ← النصوص المقسّمة
+2. تثبيت المتطلبات:
+```powershell
+d:/Downloads/files/.venv/Scripts/python.exe -m pip install -r requirements.txt
 ```
-
----
-
-## ⚙️ التثبيت
-
-```bash
-pip install -r requirements.txt
+3. بناء الفهرس من الداتا:
+```powershell
+d:/Downloads/files/.venv/Scripts/python.exe build_clean_index.py
+```
+4. تشغيل Ollama:
+```powershell
+ollama serve
+```
+5. تشغيل الواجهة:
+```powershell
+d:/Downloads/files/.venv/Scripts/python.exe flask_app.py
 ```
 
----
+الرابط:
+- http://127.0.0.1:5000
 
-## 🚀 طريقة الاستخدام
+## الملفات الأساسية
+- `flask_app.py`: واجهة Flask والمنطق الخاص بالعرض.
+- `rag_system.py`: محرك البحث والتوليد.
+- `build_clean_index.py`: إعادة بناء الفهرس من `data.json`.
+- `templates/index.html`: واجهة HTML.
+- `static/style.css` و`static/app.js`: التنسيق والتفاعلات.
+- `requirements.txt`: الاعتماديات.
 
-### 1. بناء الـ Index (مرة واحدة)
-```bash
-python rag_system.py laiha.pdf
-```
+## ميزات النسخة الحالية
+- Retrieval محلي (FAISS + TF-IDF).
+- توليد إجابة عربي عبر Ollama (`qwen2.5:1.5b-instruct`).
+- تحسينات سرعة (cache لحالة Ollama + cache للأسئلة المتكررة).
+- تنسيق إجابة ومصادر بشكل منظم.
+- زر `مسح السابق` لمسح النتائج/الكاش.
 
-### 2. واجهة ويب (Streamlit)
-```bash
-streamlit run app.py
-```
-ثم افتح `http://localhost:8501`
-
-### 3. CLI تفاعلي
-```bash
-# مع Claude API
-ANTHROPIC_API_KEY=sk-ant-... python rag_system.py
-
-# بحث فقط (بدون API)
-python rag_system.py
-```
-
-### 4. كـ Module في كودك
-```python
-from rag_system import LaihaRAG
-
-rag = LaihaRAG()
-rag.build("laiha.pdf")   # أول مرة فقط
-# rag.load()             # بعد كده أسرع
-
-# مع API
-result = rag.ask("كم ساعة للتخرج؟", api_key="sk-ant-...")
-print(result["answer"])
-print(result["sources"])  # المقاطع المسترجعة مع أرقام الصفحات
-
-# بدون API (retrieval فقط)
-print(rag.ask_no_llm("شروط مرتبة الشرف"))
-```
-
----
-
-## 🏗️ المعمارية
-
-```
-PDF
- └── PyMuPDF (fitz)
-      └── NFKC Normalization  ← يحوّل Arabic Presentation Forms لـ Standard Arabic
-           └── Chunking (600 chars + 150 overlap)
-                └── TF-IDF Vectorizer
-                │    ├── analyzer: char_wb (n-grams حرفية)
-                │    ├── ngram_range: (2, 4)
-                │    └── max_features: 10,000
-                └── FAISS FlatIP Index (cosine similarity)
-                         └── Query → Top-K Chunks → Claude Haiku → Answer
-```
-
-### ليه char n-grams للعربي؟
-- العربية لغة اشتقاقية (كلمة → كلمات → الكلمة → كلمتك)
-- الـ character n-grams بتشارك features بين الأشكال المختلفة للكلمة
-- مفيش حاجة لـ Arabic tokenizer
-- قادر يتعامل مع كلمات مكسورة في الـ PDF
-
-### ليه TF-IDF وليس Sentence Transformers؟
-| | TF-IDF | Sentence Transformers |
-|---|---|---|
-| السرعة | ⚡ فوري | 🐌 أبطأ |
-| الحجم | ~50MB | ~500MB+ |
-| GPU | ❌ مش محتاج | ✅ مستحسن |
-| Arabic | ✅ كويس مع char n-grams | ✅ ممتاز |
-
-للترقية لاحقاً: `intfloat/multilingual-e5-large`
-
----
-
-## 🔧 المشاكل الشائعة
-
-### النص العربي بيطلع رموز غريبة؟
-الـ PDF بيستخدم **Arabic Presentation Forms** (U+FE70-FEFF).
-الحل: `unicodedata.normalize('NFKC', text)` — موجود في الكود.
-
-### الـ retrieval بيرجع نتائج غلط؟
-- زوّد `top_k` (مثلاً 8 بدل 5)
-- جرب أسئلة أكثر تحديداً
-- الكلمات المكسورة في الـ PDF بتأثر على الدقة
-
----
-
-## 📊 إحصائيات
-- **الصفحات:** 43
-- **الـ Chunks:** 215
-- **Chunk size:** 600 حرف + 150 overlap
-- **Index dimensions:** 10,000
-- **Model:** claude-haiku-4-5 (generation)
+## ملاحظات
+- المشروع يعمل بالكامل محليًا.
+- بعد تعديل `data.json` شغّل `build_clean_index.py` مرة أخرى.
