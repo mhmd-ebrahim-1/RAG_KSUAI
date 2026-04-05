@@ -66,36 +66,6 @@
           <a class="btn-secondary" href="{{ url_for('clear_history') }}">مسح السابق</a>
         </div>
       </form>
-
-      <div class="suggested-head compact">
-        <h3>أسئلة سريعة</h3>
-      </div>
-
-      <div class="chips-tabs" role="tablist" aria-label="مجموعات الأسئلة المقترحة">
-        {% for grp in suggested_question_groups %}
-          <button
-            type="button"
-            class="chip-tab {{ 'active' if loop.first else '' }}"
-            data-tab="{{ grp.id }}"
-            aria-selected="{{ 'true' if loop.first else 'false' }}"
-          >
-            {{ grp.title }}
-          </button>
-        {% endfor %}
-      </div>
-
-      {% for grp in suggested_question_groups %}
-      <div class="chips compact chip-group {{ 'active' if loop.first else '' }}" data-group="{{ grp.id }}">
-        {% for q in grp.items %}
-          <button type="button" class="chip" data-q="{{ q }}">{{ q }}</button>
-        {% endfor %}
-      </div>
-      {% endfor %}
-
-      <div class="suggested-actions">
-        <button type="button" id="more-suggestions" class="more-btn">أسئلة أكتر</button>
-      </div>
-      <div id="dynamic-suggestions" class="chips compact dynamic-chips" aria-live="polite"></div>
     </section>
 
     <section class="panel tips-panel">

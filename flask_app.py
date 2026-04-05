@@ -1,7 +1,7 @@
 import os
 import html
 import time
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for
 from rag_system import LaihaRAG, check_ollama, generate_answer, OLLAMA_MODEL, is_staff_query, compose_staff_answer
 
 app = Flask(__name__)
@@ -15,39 +15,6 @@ OLLAMA_STATUS_TTL = 8
 ANSWER_CACHE_TTL = 300
 _ollama_cache = {"value": None, "ts": 0.0}
 _answer_cache = {}
-
-SUGGESTED_QUESTION_GROUPS = [
-    {
-        "id": "regs",
-        "title": "اللوائح",
-        "items": [
-            "كم ساعة للتخرج؟",
-            "ما شروط مرتبة الشرف؟",
-            "ما درجة النجاح في المقرر؟",
-            "مواد المستوى الثاني الفصل الأول",
-        ],
-    },
-    {
-        "id": "staff",
-        "title": "هيئة التدريس",
-        "items": [
-            "مين وكيل الكلية للدراسات العليا والبحوث؟",
-            "اعرض بيانات د. فاطمة محمد طلعت المرسي كاملة",
-            "ما إنجازات د. فاطمة محمد طلعت المرسي؟",
-            "ما تخصص حسن سعد حسن عبداللطيف محمود ابو منيسي؟",
-        ],
-    },
-    {
-        "id": "stats",
-        "title": "إحصائيات",
-        "items": [
-            "كم عدد أعضاء هيئة التدريس في الكلية؟",
-            "كم عدد المعيدين في الكلية؟",
-            "كم عدد أعضاء قسم علوم البيانات؟",
-            "اعرض إحصائيات الكلية حسب القسم",
-        ],
-    },
-]
 
 
 def format_retrieved_answer(chunks):
@@ -247,47 +214,6 @@ def prepare_sources_for_view(sources: list, query: str = "") -> list:
     return rendered
 
 
-def build_dynamic_questions(max_items: int = 12) -> list:
-    questions = []
-    seen = set()
-
-    chunks = getattr(rag, "chunks", None) or []
-    for row in chunks:
-        if len(questions) >= max_items:
-            break
-
-        t = row.get("type")
-        if t == "staff":
-            name = row.get("full_name") or row.get("title_ar")
-            if name:
-                q = f"اعرض بيانات {name} كاملة"
-                if q not in seen:
-                    seen.add(q)
-                    questions.append(q)
-        elif t == "statistics":
-            q = "اعرض إحصائيات الكلية حسب القسم"
-            if q not in seen:
-                seen.add(q)
-                questions.append(q)
-        elif t == "department":
-            dept = row.get("department")
-            if dept:
-                q = f"كم عدد أعضاء قسم {dept}؟"
-                if q not in seen:
-                    seen.add(q)
-                    questions.append(q)
-        elif t == "courses":
-            level = row.get("level")
-            semester = row.get("semester")
-            if level and semester:
-                q = f"مواد المستوى {level} الفصل {semester}"
-                if q not in seen:
-                    seen.add(q)
-                    questions.append(q)
-
-    return questions[:max_items]
-
-
 def get_ollama_status_cached() -> bool:
     now = time.time()
     if _ollama_cache["value"] is not None and (now - _ollama_cache["ts"]) < OLLAMA_STATUS_TTL:
@@ -386,14 +312,7 @@ def index():
         error=error,
         ollama_running=ollama_running,
         model_name=OLLAMA_MODEL,
-        suggested_question_groups=SUGGESTED_QUESTION_GROUPS,
     )
-
-
-@app.route("/api/suggest-more", methods=["GET"])
-def suggest_more():
-    items = build_dynamic_questions(max_items=12)
-    return jsonify({"items": items})
 
 
 @app.route("/favicon.ico")

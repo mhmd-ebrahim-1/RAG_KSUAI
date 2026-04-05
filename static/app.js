@@ -1,12 +1,8 @@
 const input = document.getElementById('query');
-const tabButtons = document.querySelectorAll('.chip-tab');
-const chipGroups = document.querySelectorAll('.chip-group');
 const form = document.getElementById('ask-form');
 const copyBtn = document.querySelector('.copy-answer');
 const answerBlock = document.getElementById('answer-block');
 const answerPanel = document.getElementById('answer-panel');
-const moreBtn = document.getElementById('more-suggestions');
-const dynamicSuggestions = document.getElementById('dynamic-suggestions');
 
 document.addEventListener('click', (event) => {
   const chip = event.target.closest('.chip');
@@ -14,52 +10,6 @@ document.addEventListener('click', (event) => {
   input.value = chip.dataset.q || '';
   input.focus();
 });
-
-tabButtons.forEach((tab) => {
-  tab.addEventListener('click', () => {
-    const key = tab.dataset.tab;
-    if (!key) return;
-
-    tabButtons.forEach((btn) => {
-      const active = btn === tab;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-
-    chipGroups.forEach((group) => {
-      group.classList.toggle('active', group.dataset.group === key);
-    });
-  });
-});
-
-if (moreBtn && dynamicSuggestions) {
-  moreBtn.addEventListener('click', async () => {
-    moreBtn.disabled = true;
-    const old = moreBtn.textContent;
-    moreBtn.textContent = 'جاري التحميل...';
-
-    try {
-      const resp = await fetch('/api/suggest-more', { method: 'GET' });
-      if (!resp.ok) throw new Error('bad-status');
-      const data = await resp.json();
-      const items = Array.isArray(data.items) ? data.items : [];
-
-      if (!items.length) {
-        dynamicSuggestions.innerHTML = '<span class="muted-inline">لا توجد أسئلة إضافية حالياً.</span>';
-      } else {
-        dynamicSuggestions.innerHTML = items
-          .slice(0, 12)
-          .map((q) => `<button type="button" class="chip" data-q="${q}">${q}</button>`)
-          .join('');
-      }
-    } catch (_) {
-      dynamicSuggestions.innerHTML = '<span class="muted-inline">تعذر تحميل الأسئلة الآن. حاول مرة أخرى.</span>';
-    } finally {
-      moreBtn.disabled = false;
-      moreBtn.textContent = old;
-    }
-  });
-}
 
 if (form) {
   form.addEventListener('submit', () => {
