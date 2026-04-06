@@ -1,7 +1,8 @@
-# AI Faculty Regulations Assistant (KFS University)
+# AI Faculty Regulations Assistant 
 
-Local Arabic-first RAG assistant for Faculty of AI regulations and staff information at Kafr El-Sheikh University. The project is designed for transparent, source-grounded answers with optional local LLM phrasing.
+Local Arabic-first **RAG assistant** for Faculty of AI regulations and staff information at **Kafr El-Sheikh University.** The project is designed for transparent, source-grounded answers with optional local LLM phrasing.
 
+![preview](assets/image.png)
 
 ## Value Proposition
 
